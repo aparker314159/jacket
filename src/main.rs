@@ -1,6 +1,6 @@
+use chumsky::Parser;
+
 mod parser;
-
-
 
 
 
@@ -13,6 +13,8 @@ fn main() {
 
     let src = std::fs::read_to_string(src_file).unwrap();
 
+    // For now don't worry about #lang racket
+    let ast = parser::parse_expr().padded().parse(&src);
 
-
+    println!("{:?}", ast);
 }
