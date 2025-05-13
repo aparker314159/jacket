@@ -1,3 +1,6 @@
+use std::io;
+use std::io::Read;
+
 use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, ExecutableBuffer, x64::Assembler};
 use crate::parser::*;
 
@@ -24,17 +27,25 @@ impl JIT {
         JIT { code, start }
     }
 
-    pub fn run(&self) -> Result<(), &str> {
+    pub fn run(&self) {
         let func: extern "C" fn() -> i64 = unsafe {
             std::mem::transmute(self.code.ptr(self.start))
         };
         let ret = func();
-        if ret == 0 {
-            Ok(())
-        } else {
-            Err("bad :(")
-        }
+        println!("function result: {}", ret);
     }
+}
+
+macro_rules! call_extern {
+    ($ops:ident, $addr:expr) => {dynasm!($ops
+        ; .arch x64
+        ; mov r15, rsp
+        ; and r15, 0b111
+        ; sub rsp, r15
+        ; mov r8, QWORD $addr as _
+        ; call r8
+        ; add rsp, r15
+    );};
 }
 
 fn compile_expr(ops: &mut Assembler, expr: &Expr) {
@@ -66,6 +77,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ; add rax, 1
                 );
             }
+
             (Primitive::Sub1, [arg]) => {
                 compile_expr(ops, arg);
                 dynasm!(
@@ -74,6 +86,29 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ; sub rax, 1
                 );
             }
+
+            (Primitive::IsZero, [arg]) => {
+                compile_expr(ops, arg);
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ; xor r9, r9
+                    ; cmp rax, 0
+                    ; mov r8, 1
+                    ; cmove r9, r8
+                    ; mov rax, r9
+                );
+            }
+
+            (Primitive::ReadByte, _) => {
+                // no arity checking yet but we don't compile the arguments
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ;; call_extern!(ops, readbyte)
+                );
+            }
+
             _ => todo!(),
         }
 
@@ -104,4 +139,10 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
 
         _ => panic!("Unsupported expression"),
     }
+}
+
+pub extern "C" fn readbyte() -> u8 {
+    let mut buf: [u8; 1] = [0];
+    io::stdin().read(&mut buf).unwrap();
+    buf[0]
 }

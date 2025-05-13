@@ -17,12 +17,7 @@ fn main() {
 
     // For now don't worry about #lang racket
     let ast = parser::parse_expr().padded().parse(&src);
+    println!("{:?}", ast);
     let binding = jit::JIT::compile(&ast.unwrap());
-    let ret = binding.run();
-
-    match ret {
-        Ok(_) => print!("done yippee"),
-        Err(_) => print!("whoops :("),
-    }
-    // println!("{:?}", ast);
+    binding.run();
 }

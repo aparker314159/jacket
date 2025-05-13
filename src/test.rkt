@@ -1,1 +1,1 @@
-(add1 (add1 40))
+(read-byte)

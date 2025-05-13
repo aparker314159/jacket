@@ -46,7 +46,9 @@ fn parse_bool<'src>() -> impl Parser<'src, &'src str, Value, extra::Err<Simple<'
 }
 
 fn parse_int<'src>() -> impl Parser<'src, &'src str, Value, extra::Err<Simple<'src, char>>> + Clone {
-    text::int(10)
+    just('-').or_not()
+        .then(text::int(10))
+        .to_slice()
         .map(|i: &str| Value::IntV(i.parse().unwrap()))
 } 
 
