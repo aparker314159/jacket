@@ -1,7 +1,9 @@
+extern crate chumsky;
+extern crate dynasmrt;
+
 use chumsky::Parser;
-
 mod parser;
-
+mod jit;
 
 
 fn main() {
@@ -15,6 +17,12 @@ fn main() {
 
     // For now don't worry about #lang racket
     let ast = parser::parse_expr().padded().parse(&src);
+    let binding = jit::JIT::compile(&ast.unwrap());
+    let ret = binding.run();
 
-    println!("{:?}", ast);
+    match ret {
+        Ok(_) => print!("done yippee"),
+        Err(_) => print!("whoops :("),
+    }
+    // println!("{:?}", ast);
 }
