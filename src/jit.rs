@@ -1,4 +1,4 @@
-use std::io;
+use std::io::{self, Write};
 use std::io::Read;
 
 use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, ExecutableBuffer, x64::Assembler};
@@ -55,6 +55,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                 dynasm!(
                     ops 
                     ; .arch x64
+                    ; mov rdx, 0b01
                     ; mov rax, QWORD *i
                 );
             }
@@ -62,7 +63,16 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                 dynasm!(
                     ops 
                     ; .arch x64
+                    ; mov rdx, 0b10
                     ; mov rax, QWORD if *b { 1 } else { 0 }
+                );
+            }
+            Value::CharV(c) => {
+                dynasm!(
+                    ops 
+                    ; .arch x64
+                    ; mov rdx, 0b11
+                    ; mov rax, QWORD *c as i64
                 );
             }
             _ => todo!(),
@@ -74,6 +84,8 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                 dynasm!(
                     ops 
                     ; .arch x64
+                    ; cmp rdx, 0b01
+                    ; jne 0x0
                     ; add rax, 1
                 );
             }
@@ -83,6 +95,8 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                 dynasm!(
                     ops 
                     ; .arch x64
+                    ; cmp rdx, 0b01
+                    ; jne 0x0
                     ; sub rax, 1
                 );
             }
@@ -92,11 +106,44 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                 dynasm!(
                     ops
                     ; .arch x64
+                    ; cmp rdx, 0b01
+                    ; jne 0x0
                     ; xor r9, r9
                     ; cmp rax, 0
                     ; mov r8, 1
                     ; cmove r9, r8
                     ; mov rax, r9
+                );
+            }
+
+            (Primitive::IsChar, [arg]) => {
+                compile_expr(ops, arg);
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ; cmp rdx, 0b11
+                    ; xor r9, r9
+                    ; mov r8, 1
+                    ; cmove r9, r8
+                    ; mov rax, r9
+                );
+            }
+
+            (Primitive::IntToChar, [arg]) => {
+                compile_expr(ops, arg);
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ; mov rdx, 0b11
+                );
+            }
+
+            (Primitive::CharToInt, [arg]) => {
+                compile_expr(ops, arg);
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ; mov rdx, 0b01
                 );
             }
 
@@ -106,6 +153,15 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ops
                     ; .arch x64
                     ;; call_extern!(ops, readbyte)
+                );
+            }
+
+            (Primitive::WriteByte, _) => {
+                // no arity checking yet but we don't compile the arguments
+                dynasm!(
+                    ops
+                    ; .arch x64
+                    ;; call_extern!(ops, writebyte)
                 );
             }
 
@@ -145,4 +201,8 @@ pub extern "C" fn readbyte() -> u8 {
     let mut buf: [u8; 1] = [0];
     io::stdin().read(&mut buf).unwrap();
     buf[0]
+}
+
+pub extern "C" fn writebyte(buf: [u8; 1]) {
+    io::stdout().write(&buf).unwrap();
 }
