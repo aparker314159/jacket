@@ -7,7 +7,8 @@ use crate::parser::*;
 use yaxpeax_x86::long_mode::RegSpec;
 use once_cell::sync::Lazy;
 
-static regmap: Lazy<Vec<RegSpec>> = Lazy::new(|| vec![RegSpec::rax(), RegSpec::rdi(), RegSpec::rsi()]);
+static regmap: Lazy<Vec<RegSpec>> = Lazy::new(|| vec![RegSpec::rax(), RegSpec::rdi(), RegSpec::rsi(), RegSpec::rbx(), RegSpec::rcx(),
+                                                RegSpec::r10(), RegSpec::r11(), RegSpec::r12(), RegSpec::r13()]);
 
 pub struct JIT {
     pub code: ExecutableBuffer,
@@ -88,47 +89,47 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
 
         Expr::PrimN { prim, args } => match (prim, args.as_slice()) {
             (Primitive::Add1, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
-                    ; add Rq(regmap[offset].num()), 1
+                    ; add Rq(regmap[ret].num()), 1
                 );
-                offset + 1
+                ret - 1
             }
 
             (Primitive::Sub1, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
-                    ; sub Rq(regmap[offset].num()), 1
+                    ; sub Rq(regmap[ret].num()), 1
                 );
-                offset + 1
+                ret - 1
             }
 
             (Primitive::IsZero, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
                     ; xor r9, r9
-                    ; cmp Rq(regmap[offset].num()), 0
+                    ; cmp Rq(regmap[ret].num()), 0
                     ; mov r8, 1
                     ; cmove r9, r8
                     ; mov rax, r9
                 );
-                offset + 1
+                ret - 1
             }
 
             (Primitive::IsChar, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
@@ -136,29 +137,29 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; xor r9, r9
                     ; mov r8, 1
                     ; cmove r9, r8
-                    ; mov rax, r9
+                    ; mov Rq(regmap[ret].num()), r9
                 );
-                offset
+                ret - 1
             }
 
             (Primitive::IntToChar, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; mov rdx, 0b11
                 );
-                offset
+                ret
             }
 
             (Primitive::CharToInt, [arg]) => {
-                compile_expr(ops, arg, offset);
+                let ret = compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; mov rdx, 0b01
                 );
-                offset
+                ret
             }
 
             (Primitive::ReadByte, _) => {
