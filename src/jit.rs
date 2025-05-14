@@ -4,6 +4,11 @@ use std::io::Read;
 use dynasmrt::{dynasm, DynasmApi, DynasmLabelApi, ExecutableBuffer, x64::Assembler};
 use crate::parser::*;
 
+use yaxpeax_x86::long_mode::RegSpec;
+use once_cell::sync::Lazy;
+
+static regmap: Lazy<Vec<RegSpec>> = Lazy::new(|| vec![RegSpec::rax(), RegSpec::rdi(), RegSpec::rsi()]);
+
 pub struct JIT {
     pub code: ExecutableBuffer,
     pub start: dynasmrt::AssemblyOffset,
@@ -14,7 +19,7 @@ impl JIT {
         let mut ops = Assembler::new().unwrap();
 
         let start = ops.offset();
-        compile_expr(&mut ops, expr);
+        compile_expr(&mut ops, expr, 0);
 
         dynasm!(
             ops
@@ -48,7 +53,7 @@ macro_rules! call_extern {
     );};
 }
 
-fn compile_expr(ops: &mut Assembler, expr: &Expr) {
+fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
     match expr {
         Expr::Lit { v } => match v {
             Value::IntV(i) => {
@@ -56,68 +61,74 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ops 
                     ; .arch x64
                     ; mov rdx, 0b01
-                    ; mov rax, QWORD *i
+                    ; mov Rq(regmap[offset].num()), QWORD *i
                 );
+                offset + 1
             }
             Value::BoolV(b) => {
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; mov rdx, 0b10
-                    ; mov rax, QWORD if *b { 1 } else { 0 }
+                    ; mov Rq(regmap[offset].num()), QWORD if *b { 1 } else { 0 }
                 );
+                offset + 1
             }
             Value::CharV(c) => {
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; mov rdx, 0b11
-                    ; mov rax, QWORD *c as i64
+                    ; mov Rq(regmap[offset].num()), QWORD *c as i64
                 );
+                offset + 1
             }
             _ => todo!(),
         }
 
         Expr::PrimN { prim, args } => match (prim, args.as_slice()) {
             (Primitive::Add1, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
-                    ; add rax, 1
+                    ; add Rq(regmap[offset].num()), 1
                 );
+                offset + 1
             }
 
             (Primitive::Sub1, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops 
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
-                    ; sub rax, 1
+                    ; sub Rq(regmap[offset].num()), 1
                 );
+                offset + 1
             }
 
             (Primitive::IsZero, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; cmp rdx, 0b01
                     ; jne 0x0
                     ; xor r9, r9
-                    ; cmp rax, 0
+                    ; cmp Rq(regmap[offset].num()), 0
                     ; mov r8, 1
                     ; cmove r9, r8
                     ; mov rax, r9
                 );
+                offset + 1
             }
 
             (Primitive::IsChar, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
@@ -127,24 +138,27 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ; cmove r9, r8
                     ; mov rax, r9
                 );
+                offset
             }
 
             (Primitive::IntToChar, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; mov rdx, 0b11
                 );
+                offset
             }
 
             (Primitive::CharToInt, [arg]) => {
-                compile_expr(ops, arg);
+                compile_expr(ops, arg, offset);
                 dynasm!(
                     ops
                     ; .arch x64
                     ; mov rdx, 0b01
                 );
+                offset
             }
 
             (Primitive::ReadByte, _) => {
@@ -154,6 +168,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ; .arch x64
                     ;; call_extern!(ops, readbyte)
                 );
+                offset
             }
 
             (Primitive::WriteByte, _) => {
@@ -163,13 +178,14 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
                     ; .arch x64
                     ;; call_extern!(ops, writebyte)
                 );
+                offset
             }
 
             _ => todo!(),
         }
 
         Expr::If { if_, then_, else_ } => {
-            compile_expr(ops, if_);
+            let after_if = compile_expr(ops, if_, offset);
 
             let else_label = ops.new_dynamic_label();
             let end_label = ops.new_dynamic_label();
@@ -177,11 +193,11 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
             dynasm!(
                 ops
                 ; .arch x64
-                ; cmp rax, 0
+                ; cmp Rq(regmap[offset].num()), 0
                 ; je =>else_label
             );
 
-            compile_expr(ops, then_);
+            let after_then = compile_expr(ops, then_, after_if);
             dynasm!(
                 ops 
                 ; .arch x64
@@ -189,10 +205,11 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr) {
             );
 
             ops.dynamic_label(else_label);
-            compile_expr(ops, else_);
+            let ret = compile_expr(ops, else_, after_then);
             ops.dynamic_label(end_label);
-        }
 
+            ret
+        }
         _ => panic!("Unsupported expression"),
     }
 }
