@@ -170,7 +170,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; cmove r9, r8
                     ; mov rax, r9
                 );
-                ret - 1
+                ret + 1
             }
 
             (Primitive::IsChar, [arg]) => {
@@ -184,7 +184,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; cmove r9, r8
                     ; mov Rq(regmap[ret].num()), r9
                 );
-                ret - 1
+                ret + 1
             }
 
             (Primitive::IntToChar, [arg]) => {
