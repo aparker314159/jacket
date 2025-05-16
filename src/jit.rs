@@ -64,7 +64,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; mov rdx, 0b01
                     ; mov Rq(regmap[offset].num()), QWORD *i
                 );
-                offset + 1
+                offset
             }
             Value::BoolV(b) => {
                 dynasm!(
@@ -73,7 +73,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; mov rdx, 0b10
                     ; mov Rq(regmap[offset].num()), QWORD if *b { 1 } else { 0 }
                 );
-                offset + 1
+                offset
             }
             Value::CharV(c) => {
                 dynasm!(
@@ -82,7 +82,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; mov rdx, 0b11
                     ; mov Rq(regmap[offset].num()), QWORD *c as i64
                 );
-                offset + 1
+                offset
             }
             _ => todo!(),
         }
@@ -97,7 +97,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                                 ; .arch x64
                                 ; mov Rq(regmap[offset].num()), (n + 1).try_into().unwrap()
                             );
-                            offset + 1
+                            offset
                         },
                         _ => {
                             dynasm!(
@@ -117,7 +117,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                             ; jne 0x0
                             ; add Rq(regmap[ret].num()), 1
                         );
-                        ret + 1
+                        ret
                     }
                 }
                 
@@ -132,7 +132,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                                 ; .arch x64
                                 ; mov Rq(regmap[offset].num()), (n - 1).try_into().unwrap()
                             );
-                            offset + 1
+                            offset
                         },
                         _ => {
                             dynasm!(
@@ -152,7 +152,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                             ; jne 0x0
                             ; sub Rq(regmap[ret].num()), 1
                         );
-                        ret + 1
+                        ret
                     }
                 }
             }
@@ -170,7 +170,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; cmove r9, r8
                     ; mov rax, r9
                 );
-                ret + 1
+                ret
             }
 
             (Primitive::IsChar, [arg]) => {
@@ -184,7 +184,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                     ; cmove r9, r8
                     ; mov Rq(regmap[ret].num()), r9
                 );
-                ret + 1
+                ret
             }
 
             (Primitive::IntToChar, [arg]) => {
