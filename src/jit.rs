@@ -221,11 +221,7 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                 dynasm!(
                     ops
                     ; .arch x64
-                    ; sub rsp, 8
-                    ; mov [rsp], Rq(regmap[offset].num())
-                    ; mov Rq(regmap[offset + 1].num()), rsp
                     ;; call_extern!(ops, writebyte)
-                    ; add rsp, 8
                 );
                 offset
             }
@@ -269,6 +265,7 @@ pub extern "C" fn readbyte() -> u8 {
     buf[0]
 }
 
-pub extern "C" fn writebyte(buf: [u8; 1]) {
-    io::stdout().write(&buf).unwrap();
+pub extern "C" fn writebyte(buf: *const u8) {
+    let slice = unsafe { std::slice::from_raw_parts(buf, 1) };
+    io::stdout().write_all(slice).unwrap();
 }
