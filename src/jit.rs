@@ -37,8 +37,7 @@ impl JIT {
         let func: extern "C" fn() -> i64 = unsafe {
             std::mem::transmute(self.code.ptr(self.start))
         };
-        let ret = func();
-        println!("function result: {}", ret);
+        let _ = func();
     }
 }
 
@@ -222,7 +221,11 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
                 dynasm!(
                     ops
                     ; .arch x64
+                    ; sub rsp, 8
+                    ; mov [rsp], Rq(regmap[offset].num())
+                    ; mov Rq(regmap[offset + 1].num()), rsp
                     ;; call_extern!(ops, writebyte)
+                    ; add rsp, 8
                 );
                 offset
             }

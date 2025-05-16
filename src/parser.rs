@@ -74,7 +74,7 @@ fn parse_prim_name<'src>() -> impl Parser<'src, &'src str, Primitive, extra::Err
         just("sub1").to(Primitive::Sub1),
         just("zero?").to(Primitive::IsZero),
         just("char?").to(Primitive::IsChar),
-        just("integer->char").to(Primitive::IntToChar),
+        just("int->char").to(Primitive::IntToChar),
         just("char->int").to(Primitive::CharToInt),
         just("write-byte").to(Primitive::WriteByte),
     ))
