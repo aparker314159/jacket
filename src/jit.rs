@@ -89,27 +89,72 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
 
         Expr::PrimN { prim, args } => match (prim, args.as_slice()) {
             (Primitive::Add1, [arg]) => {
-                let ret = compile_expr(ops, arg, offset);
-                dynasm!(
-                    ops 
-                    ; .arch x64
-                    ; cmp rdx, 0b01
-                    ; jne 0x0
-                    ; add Rq(regmap[ret].num()), 1
-                );
-                ret - 1
+                match arg {
+                    Expr::Lit { v } => match v {
+                        Value::IntV( n ) => {
+                            dynasm!(
+                                ops
+                                ; .arch x64
+                                ; mov Rq(regmap[offset].num()), (n + 1).try_into().unwrap()
+                            );
+                            offset + 1
+                        },
+                        _ => {
+                            dynasm!(
+                                ops
+                                ; .arch x64
+                                ; jmp 0x0
+                            );
+                            offset
+                        }
+                    },
+                    _ => {
+                        let ret = compile_expr(ops, arg, offset);
+                        dynasm!(
+                            ops 
+                            ; .arch x64
+                            ; cmp rdx, 0b01
+                            ; jne 0x0
+                            ; add Rq(regmap[ret].num()), 1
+                        );
+                        ret + 1
+                    }
+                }
+                
             }
 
             (Primitive::Sub1, [arg]) => {
-                let ret = compile_expr(ops, arg, offset);
-                dynasm!(
-                    ops 
-                    ; .arch x64
-                    ; cmp rdx, 0b01
-                    ; jne 0x0
-                    ; sub Rq(regmap[ret].num()), 1
-                );
-                ret - 1
+                match arg {
+                    Expr::Lit { v } => match v {
+                        Value::IntV( n ) => {
+                            dynasm!(
+                                ops
+                                ; .arch x64
+                                ; mov Rq(regmap[offset].num()), (n - 1).try_into().unwrap()
+                            );
+                            offset + 1
+                        },
+                        _ => {
+                            dynasm!(
+                                ops
+                                ; .arch x64
+                                ; jmp 0x0
+                            );
+                            offset
+                        }
+                    },
+                    _ => {
+                        let ret = compile_expr(ops, arg, offset);
+                        dynasm!(
+                            ops 
+                            ; .arch x64
+                            ; cmp rdx, 0b01
+                            ; jne 0x0
+                            ; sub Rq(regmap[ret].num()), 1
+                        );
+                        ret + 1
+                    }
+                }
             }
 
             (Primitive::IsZero, [arg]) => {
