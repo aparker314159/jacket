@@ -235,25 +235,64 @@ fn compile_expr(ops: &mut Assembler, expr: &Expr, offset: usize) -> usize {
             let else_label = ops.new_dynamic_label();
             let end_label = ops.new_dynamic_label();
 
-            dynasm!(
-                ops
-                ; .arch x64
-                ; cmp Rq(regmap[offset].num()), 0
-                ; je =>else_label
-            );
-
-            let after_then = compile_expr(ops, then_, after_if);
-            dynasm!(
-                ops 
-                ; .arch x64
-                ; jmp =>end_label
-            );
-
-            ops.dynamic_label(else_label);
-            let ret = compile_expr(ops, else_, after_then);
-            ops.dynamic_label(end_label);
-
-            ret
+            match if_.as_ref() {
+                Expr::Lit { v } => match v {
+                    Value::BoolV(b) => {
+                        match b {
+                            true => {
+                                let after = compile_expr(ops, then_, offset);
+                                after
+                            },
+                            false => {
+                                let after = compile_expr(ops, else_, offset);
+                                after
+                            },
+                        }
+                    },
+                    _ => {
+                        dynasm!(
+                            ops
+                            ; .arch x64
+                            ; cmp Rq(regmap[offset].num()), 0
+                            ; je =>else_label
+                        );
+            
+                        let after_then = compile_expr(ops, then_, after_if);
+                        dynasm!(
+                            ops 
+                            ; .arch x64
+                            ; jmp =>end_label
+                        );
+            
+                        ops.dynamic_label(else_label);
+                        let ret = compile_expr(ops, else_, after_then);
+                        ops.dynamic_label(end_label);
+            
+                        return ret;
+                    },
+                },
+                _ => {
+                    dynasm!(
+                        ops
+                        ; .arch x64
+                        ; cmp Rq(regmap[offset].num()), 0
+                        ; je =>else_label
+                    );
+        
+                    let after_then = compile_expr(ops, then_, after_if);
+                    dynasm!(
+                        ops 
+                        ; .arch x64
+                        ; jmp =>end_label
+                    );
+        
+                    ops.dynamic_label(else_label);
+                    let ret = compile_expr(ops, else_, after_then);
+                    ops.dynamic_label(end_label);
+        
+                    return ret;
+                }
+            }
         }
         _ => panic!("Unsupported expression"),
     }
